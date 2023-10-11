@@ -47,3 +47,14 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Directories
+Data/
+Annual Data/
+Archive/
+Checks/
+Completeness/
+
+# Data
+*.parquet
+*.rds
