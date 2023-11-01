@@ -3,9 +3,8 @@
 # Packages required for MSG scripts ----
 
 library(odbc) # connecting to SMRA
-library(haven) # reading & writing .sav files
 library(here)
-library(tidyverse) # data manipulation etc.
+library(dplyr) # data manipulation etc.
 library(janitor) # tidy up names
 library(magrittr) # for double pipe operator
 library(data.table)
@@ -15,7 +14,6 @@ library(openxlsx) # reading & writing excel files
 library(tidylog) # detailed output
 library(glue) # combining text
 library(fst) # fast data frame storage
-library(labelled) # manipulation of metadata
 library(fs)
 library(purrr) # mapping functions
 library(readxl)
@@ -23,7 +21,6 @@ library(writexl)
 library(readr) # Reading of *.rds files
 library(stringr) # String manipulation
 library(phsmethods)
-library(tictoc)
 
 find_latest_file <- function(directory, regexp) {
   latest_file_path <- fs::dir_info(path = directory,
