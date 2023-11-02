@@ -16,9 +16,8 @@ code_folder <- ""
 # Packages required for MSG scripts ----
 
 library(odbc) # connecting to SMRA
-library(haven) # reading & writing .sav files
 library(here)
-library(tidyverse) # data manipulation etc.
+library(dplyr) # data manipulation etc.
 library(janitor) # tidy up names
 library(magrittr) # for double pipe operator
 library(data.table)
@@ -28,7 +27,6 @@ library(openxlsx) # reading & writing excel files
 library(tidylog) # detailed output
 library(glue) # combining text
 library(fst) # fast data frame storage
-library(labelled) # manipulation of metadata
 library(fs)
 library(purrr) # mapping functions
 library(readxl)
@@ -36,7 +34,6 @@ library(writexl)
 library(readr) # Reading of *.rds files
 library(stringr) # String manipulation
 library(phsmethods)
-library(tictoc)
 
 find_latest_file <- function(directory, regexp) {
   latest_file_path <-
@@ -228,101 +225,96 @@ monthly_beddays <- function(data,
                             earliest_date = NA,
                             latest_date = NA,
                             pivot_longer = TRUE) {
-  
   # Create a vector of years from the first to last
-  years <- c(lubridate::year(earliest_date):lubridate::year(latest_date))
+  years <- lubridate::year(earliest_date):lubridate::year(latest_date)
   
   # Create a vector of month names
-  month_names <- lubridate::month(1:12, label = T)
+  month_names <- ordered(month.abb, month.abb)
+  
+  new_vars <- 0:(12 * length(years) - (1 + (12 - lubridate::month(latest_date))))
   
   # Use purrr to create a list of intervals these will be
   # date1 -> date1 + 1 month
   # for every month in the time period we're looking at
-  month_intervals <-
-    purrr::map2(
-      # The first parameter produces a list of the years
-      # The second produces a list of months
-      sort(rep(years, 12)), rep(0:11, length(years)),
-      function(year, month) {
-        # Initialise a date as start_date + x months * (12 * y years)
-        earliest_date %m+% months(month + (12 * (year - min(years))))
-      }
-    ) %>%
-    map(function(interval_start) {
-      # Take the list of months just produced and create a list of
-      # one month intervals
-      lubridate::interval(interval_start, interval_start %m+% months(1))
-    }) %>%
+  month_intervals <- purrr::map(
+    # The first parameter produces a list of the years
+    # The second produces a list of months
+    new_vars,
+    function(month) {
+      # Initialise a date as start_date + x months * (12 * y years)
+      interval_start <- lubridate::add_with_rollback(earliest_date, months(month))
+      lubridate::interval(
+        interval_start,
+        lubridate::add_with_rollback(interval_start, months(1))
+      )
+    }
+  ) |>
     # Give them names these will be of the form MMM_YYYY
-    setNames(str_c(
+    purrr::set_names(paste0(
       rep(month_names, length(years)),
       "_", sort(rep(years, 12)), "_beddays"
-    ))
+    )[seq_along(new_vars)])
   
-  # Remove any months which are after the latest_date
-  month_intervals <- month_intervals[map_lgl(
-    month_intervals,
-    ~ latest_date > lubridate::int_start(.)
-  )]
-  
-  
-  # Use the list of intervals to create new varaibles for each month
+  # Use the list of intervals to create new variables for each month
   # and work out the beddays
-  data <- data %>%
-    # map_dfc will return a single dataframe with all the others bound by column
-    bind_cols(map_dfc(month_intervals, function(month_interval) {
-      # Use intersect to find the overlap between the month of interest
-      # and the stay, then use time_length to measure the length in days
-      time_length(intersect(
-        # use int_shift to move the interval forward by one day
-        # This is so we count the last day (and not the first), which is
-        # the correct methodology
-        int_shift(interval(
-          data %>%
-            pull(admission_date),
-          data %>%
-            pull(discharge_date)
-        ),
-        by = days(1)
-        ),
-        month_interval
-      ),
-      unit = "days"
-      )
-    }))
+  data <- data |>
+    # map (+ as_tibble) will return a single dataframe
+    dplyr::bind_cols(
+      purrr::map(month_intervals, function(month_interval) {
+        # Use intersect to find the overlap between the month of interest
+        # and the stay, then use time_length to measure the length in days
+        time_length(
+          intersect(
+            # use int_shift to move the interval forward by one day
+            # This is so we count the last day (and not the first), which is
+            # the correct methodology
+            lubridate::int_shift(
+              lubridate::interval(
+                dplyr::pull(data, admission_date),
+                dplyr::pull(data, discharge_date)
+              ),
+              by = days(1)
+            ),
+            month_interval
+          ),
+          unit = "days"
+        )
+      }) |>
+        dplyr::as_tibble())
   
   names(month_intervals) <- stringr::str_replace(
     names(month_intervals),
     "_beddays", "_admissions"
   )
   
-  data <- data %>%
-    # map_dfc will return a single dataframe with all the others bound by column
-    bind_cols(map_dfc(month_intervals, function(month_interval) {
-      if_else(data %>%
-                pull(discharge_date) %>%
-                floor_date(unit = "month") == int_start(month_interval),
-              1L,
-              NA_integer_
-      )
-    }))
+  data <- data |>
+    # map (+ as_tible) will return a single dataframe
+    dplyr::bind_cols(
+      purrr::map(month_intervals, function(month_interval) {
+        dplyr::if_else(
+          dplyr::pull(data, discharge_date) |>
+            lubridate::floor_date(unit = "month") == lubridate::int_start(month_interval),
+          1L,
+          NA_integer_
+        )
+      }) |> dplyr::as_tibble()
+    )
+  
   # Default behaviour
   # Turn all of the Mmm_YYYY (e.g. Jan_2019) into a Month and Year variable
   # This means many more rows so we drop any which aren't interesting
   # i.e. all NAs
   if (pivot_longer) {
-    data <- data %>%
+    data <- data |>
       # Use pivot longer to create a month, year and beddays column which
       # can be used to aggregate later
-      pivot_longer(
+      tidyr::pivot_longer(
         cols = contains("_20"),
         names_to = c("month", "year", ".value"),
         names_pattern = "^([A-Z][a-z]{2})_(\\d{4})_([a-z]+)$",
         names_ptypes = list(
           month = factor(
-            levels = as.vector(lubridate::month(1:12,
-                                                label = TRUE
-            )),
+            levels = month.abb,
             ordered = TRUE
           ),
           year = factor(
