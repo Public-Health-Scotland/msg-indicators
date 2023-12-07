@@ -16,7 +16,7 @@ pastyboy <- function(pathend) {
     # Change any missing values to empty string
     mutate(across(c("age_grp_18", "age_grp_65_18_64", "age_grp_all_ages"), ~ replace_na(.x, ""))) %>%
     # The age variables are named differently in each sheet so this combines them
-    unite(age_group, c(age_grp_18, age_grp_65_18_64, age_grp_all_ages), sep = "")
+    tidyr::unite(age_group, c(age_grp_18, age_grp_65_18_64, age_grp_all_ages), sep = "")
   return(set)
 }
 
@@ -24,7 +24,7 @@ pastyboy <- function(pathend) {
 aefinal <- bind_rows(pastyboy(""), pastyboy("-Scotland"), pastyboy("-S&C"))
 ## Tidy up LCA names, make sure they're in one column
 aefinal %<>% mutate(across(c("council_area", "council_area_desc"), ~ replace_na(.x, ""))) %>%
-  unite(council_area, c(council_area_desc, council_area), sep = "") %>%
+  tidyr::unite(council_area, c(council_area_desc, council_area), sep = "") %>%
   # Drop unnecessary variables
   select(-sheet) %>%
   # Ensure numbers are coded as such

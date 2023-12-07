@@ -24,7 +24,7 @@ start_date_excel <- ymd("2019-04-01")
 end_date <- ymd(output_date <- strftime(Sys.Date(), format = "%Y%m%d"))
 
 # end of reporting period (last day of preceding month - 1 month)
-last_date <- as_date(format(Sys.Date() - months(1), '%Y-%m-01')) - 1
+last_date <- as_date(format(Sys.Date() - months(2), '%Y-%m-01')) - 1
 
 # Read in GLS data from previous script
 gls_data <- arrow::read_parquet(path(data_folder, "2b_GLS_beddays.parquet"))

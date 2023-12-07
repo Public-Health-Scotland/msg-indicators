@@ -2,18 +2,19 @@
 files_to_zip <- dir("Data", full.names = TRUE)
 
 # Get the reporting month as a string
-file_prefix <- "Jun-2023"
+file_prefix <- "Sep-2023"
 
 # Keep the older A&E data
-files_to_zip <- files_to_zip[! files_to_zip %in% c("Data/3-A&E-1415.rds",
-                                                   "Data/3-A&E-1516.rds",
-                                                   "Data/3-A&E-1617.rds",
-                                                   "Data/3-A&E-1718.rds",
-                                                   "Data/3-A&E-1819.rds",
-                                                   "Data/3-A&E-1920.rds",
-                                                   "Data/3-A&E-2021.rds",
-                                                   "Data/3-A&E-2122.rds",
-                                                   "Data/3-Complete-Years.rds")]
+files_to_zip <- files_to_zip[! files_to_zip %in% c("Data/3-A&E-1415.parquet",
+                                                   "Data/3-A&E-1516.parquet",
+                                                   "Data/3-A&E-1617.parquet",
+                                                   "Data/3-A&E-1718.parquet",
+                                                   "Data/3-A&E-1819.parquet",
+                                                   "Data/3-A&E-1920.parquet",
+                                                   "Data/3-A&E-2021.parquet",
+                                                   "Data/3-A&E-2122.parquet",
+                                                   "Data/3-A&E-2223.parquet",
+                                                   "Data/3-Complete-Years.parquet")]
 
 # Subset breakdowns and main indicator files
 breakdowns <- files_to_zip[stringr::str_detect(files_to_zip, 
