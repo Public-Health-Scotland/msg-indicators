@@ -3,9 +3,7 @@
 question56 <- .rs.askForPassword("Are you updating Indicators 5 and 6?")
 questionc <- .rs.askForPassword("Do you want to do completeness?")
 
-tic("Whole script")
 # SECTION 1: Indicator 1 ----
-tic("Indicator 1")
 
 # Get most recent breakdown file for indicator 1
 ind_1 <- arrow::read_parquet("Data/1a-Admissions-breakdown.parquet") %>% 
@@ -17,11 +15,8 @@ ind_1 <- arrow::read_parquet("Data/1a-Admissions-breakdown.parquet") %>%
   summarise(one_admissions = sum(admissions), .groups = "keep") %>% 
   ungroup() %>% 
   as_tibble() 
-toc()
 
 # SECTION 2: Indicator 2 ----
-tic("Indicator 2")
-
 # Firstly, read in and wrangle the indicator 2a data
 # We use the SMR extract here because we want CIJ-level data
 
@@ -184,10 +179,8 @@ ind_2 <- bind_rows(ind_2a, ind_2b, ind_2c, .id = "indicator") %>%
   standard_lca_names(council)
 
 rm(ind_2a, ind_2b, ind_2c)
-toc()
 
 # SECTION 3: Indicator 3 ----
-tic("Indicator 3")
 
 # Read in data from A&E breakdowns file
 ind_3 <- arrow::read_parquet("Data/3-A&E-Breakdowns.parquet") %>% 
@@ -211,10 +204,8 @@ ind_3 <- arrow::read_parquet("Data/3-A&E-Breakdowns.parquet") %>%
   as_tibble() %>% 
   mutate(council = str_replace(council," and ", " & ")) %>% 
   filter(month >= dmy("01-04-2017"))
-toc()
 
 # SECTION 4: Indicator 4 ----
-tic("Indicator 4")
 
 ind_4_master <- arrow::read_parquet("Data/4-Delayed-Discharge-Breakdowns.parquet") %>% 
   # Get rid of any undefined council names
@@ -257,10 +248,8 @@ ind_4 <- ind_4 %>%
   # Get the total beddays across the split reasons
   rowwise() %>% 
   mutate(four_all_beddays = sum(c_across(four_hsc_beddays:four_pcf_beddays)))
-toc()
 
 # SECTION 5: Bringing indicators 1, 2 and 3 into the same data frame ----
-tic("All groupings")
 
 ind_123 <- bind_rows(ind_1, ind_2, ind_3) %>% 
   # Use this opportunity to align Council names with those in ind_4
@@ -299,10 +288,8 @@ ind_123 <- bind_rows(ind_123, temp_allages, temp_18plus)
   
 # Remove the temp files
 rm(temp_allages, temp_18plus)
-toc()
 
 # SECTION 6: Bringing indicators 1, 2, 3 and 4 together ----
-tic("Add files")
 
 # Join the data frame with 1-3 with the data frame for 4
 ind_1234 <- full_join(ind_123, ind_4)
@@ -310,10 +297,8 @@ ind_1234 <- full_join(ind_123, ind_4)
 # Join dz_lookup to the main data frame to get la_codes. These are required for Tableau
 # security filters
 ind_1234 <- left_join(ind_1234, lca_lookup_tableau) 
-toc()
 
 # SECTION 7: Rolling 12-month totals ----
-tic("Rolling 12")
 
 rolling_output <- data.frame()
 rolling_input <- ind_1234 %>% 
@@ -351,10 +336,8 @@ rolling_output <- rolling_output %>%
 
 # Join the regular measure and the rolling 12-month measures
 ind_all_and_r12 <- full_join(ind_1234, rolling_output)
-toc()
 
 # SECTION 8: Scotland totals and populations ----
-tic("Populations")
 
 # Create totals for the whole of Scotland
 scotland_totals <- ind_all_and_r12 %>% 
@@ -414,9 +397,7 @@ ind_final <- bind_rows(ind_final, cs) %>%
          "population")
 rm(cs)
 
-toc()
 # SECTION 9: Rates for all measures ----
-tic("Rates")
 
 # Create an 'all localities' group for each partnership, but not Scotland
 # as that is already set to 'all'.
@@ -477,13 +458,10 @@ ind_final <- ind_final %>% mutate(
          Four_HSC_rate = four_hsc_rate,
          Four_PCF_rate = four_pcf_rate)
 
-write_sav(ind_final, "Data/MSG Tableau 1 to 4.sav")
+haven::write_sav(ind_final, "Data/MSG Tableau 1 to 4.sav")
 write_csv(ind_final, "Data/MSG Tableau 1 to 4.csv", na="")
 
-toc()
-
 # SECTION 10: Indicators 5 and 6 ----
-tic("Five and six")
 
 if (str_detect(question56, "[Yy]")){
   ind_5 <- read_rds("Annual Data/Final figures.rds") %>% 
@@ -528,14 +506,12 @@ if (str_detect(question56, "[Yy]")){
       `Partnership` = council
     )
   rm(ind_5, ind_6)
-  write_sav(ind_5_6, "Data/MSG Tableau 5 and 6.sav")
+  haven::write_sav(ind_5_6, "Data/MSG Tableau 5 and 6.sav")
   write_csv(ind_5_6, "Data/MSG Tableau 5 and 6.csv", na="")
   # rm(ind_5_6)
 }
-toc()
 
-# SECTION 11: Completeness ----
-tic("Completeness")
+# SECTION 11: Completeness ----]
 
 if (str_detect(questionc, "[Yy]")) {
 smr_completeness <-
@@ -562,10 +538,7 @@ smr_completeness <-
                 smr04 = as.numeric(smr04) * 100
               )) %>% 
   clean_names()
-write_sav(smr_completeness, "Data/Completeness.sav")
+haven::write_sav(smr_completeness, "Data/Completeness.sav")
 write_csv(smr_completeness, "Data/Completeness.csv", na="")
 rm(smr_completeness)
 }
-toc()
-
-toc()
