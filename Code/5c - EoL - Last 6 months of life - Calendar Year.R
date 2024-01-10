@@ -10,8 +10,6 @@
 ### 1 - Set up ----
 
 library(fs)
-eol_folder <- "/conf/irf/03-Integration-Indicators/02-MSG/01-Data/05-EoL/R development/"
-source(path(eol_folder, "0. Indicator 5 - Set up.R"))
 
 
 ### 2 - Open SMRA Connection ----
@@ -23,7 +21,7 @@ smra_connect <- dbConnect(odbc(),
 
 ### 3 - Extract SMR01 / SMR01E / SMR04 data ----
 
-smra_view <-m"SMR01_PI"
+smra_view <- "SMR01_PI"
 
 # Define SQL query
 Query_SMR01 <- paste0(
@@ -254,6 +252,7 @@ deaths_cy <- deaths_cy %>% mutate(
     (date_of_death >= "2019-01-01" & date_of_death < "2020-01-01") ~ "2019",
     (date_of_death >= "2020-01-01" & date_of_death < "2021-01-01") ~ "2020",
     (date_of_death >= "2021-01-01" & date_of_death < "2022-01-01") ~ "2021",
+    (date_of_death >= "2022-01-01" & date_of_death < "2023-01-01") ~ "2022",
     TRUE ~ "Unknown")
 )
 
@@ -391,7 +390,7 @@ hosp_los_wider <- smr_deaths %>%
   replace_na(list(large_hospital = 0, community_hospital = 0, hospice_palliative_care_unit = 0))
 
 # save temp file
-write_rds(hosp_los_wider, path(eol_folder, "Final Activity CY.rds"), compress="gz")
+arrow::write_parquet(hosp_los_wider, path(eol_folder, "Final Activity CY.parquet"))
 
 
 # Aggregate total los for each category
@@ -503,10 +502,10 @@ output_final_cy <- output_all_cy %>%
                  .default = lca)) %>%
   
   # set 2021/22 to provisional
-  mutate(calyear = recode(calyear, "2021" = "2021p", .default = calyear))
+  mutate(calyear = recode(calyear, "2022" = "2022p", .default = calyear))
 
 # save output for MSG
-write_rds(output_final_cy, path(eol_folder, "Final figures CY.rds"))
+arrow::write_parquet(output_final_cy, path(eol_folder, "Final figures CY.parquet"))
 write.xlsx(output_final_cy, path(eol_folder, "Final figures CY.xlsx"), overwrite = TRUE)
 
 

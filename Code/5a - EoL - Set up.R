@@ -35,18 +35,18 @@ library(openxlsx)      # For writing to excel
 start_date_smr <- lubridate::ymd(20150401)
 
 # End date
-end_date_smr <- lubridate::ymd(20220331)
+end_date_smr <- lubridate::ymd(20230331)
 
 # Start date Death records
 start_date_dths <- lubridate::ymd(20180401)
 
 # End date Death records
-end_date_dths <- ymd(20220331)
+end_date_dths <- ymd(20230331)
 
 
 ### 3 - Output file path
 
-eol_folder <- "/conf/irf/03-Integration-Indicators/02-MSG/01-Data/05-EoL/R development/"
+eol_folder <- "/conf/irf/03-Integration-Indicators/02-MSG/06-R-Project/msg-indicators/Annual Data/"
 
 
 ### 4 - Define list of external causes of death codes ----
@@ -77,10 +77,7 @@ hospice <-  c("C413V", "C306V", "A227V", "G414V", "L102K", "S121K",
 #Community Hospital lookup
 comm_hosp <- function(){
   
-  read_rds(glue("/conf/irf/03-Integration-Indicators/02-MSG/",
-                "01-Data/05-EoL/Community Hospital lookups/",
-                "community_hospital_lookup.rds")) %>%
-    
+  read_rds(glue("/conf/irf/03-Integration-Indicators/02-MSG/01-Data/05-EoL - Community Hospital Lookup/community_hospital_lookup.rds")) %>%
     clean_names()
   
 }
@@ -90,22 +87,22 @@ postcode <- function(version =""){
   
   fs::dir_ls(glue("/conf/linkage/output/lookups/Unicode/Geography/",
                   "Scottish Postcode Directory/"),
-             regexp = glue("{version}.rds$"))  %>%
+             regexp = glue("{version}.parquet$"))  %>%
     
     #Read in the most up to date lookup version
     max() %>%
     
-    read_rds() %>%
+    arrow::read_parquet() %>%
     
     clean_names() %>%
     
-    select(pc7, ca2019, ca2019name, ur6_2016_name, 
+    select(pc7, ca2019, ca2019name, ur6_2020_name, 
            datazone2011) %>%
     
     
     rename(ca = ca2019name,
            ca_code = ca2019,
-           urban_rural = ur6_2016_name,
+           urban_rural = ur6_2020_name,
            datazone = datazone2011) %>%
     
     mutate(urban_rural = str_remove(urban_rural, "^\\d\\s"))

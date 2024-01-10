@@ -9,8 +9,6 @@
 ### 1 - Set up ----
 
 library(fs)
-eol_folder <- "/conf/irf/03-Integration-Indicators/02-MSG/01-Data/05-EoL/R development/"
-source(path(eol_folder, "5a. EoL - Set up.R"))
 
 
 ### 2 - Open SMRA Connection ----
@@ -255,6 +253,7 @@ deaths <- deaths %>% mutate(
     (date_of_death >= "2019-04-01" & date_of_death < "2020-04-01") ~ "2019/20",
     (date_of_death >= "2020-04-01" & date_of_death < "2021-04-01") ~ "2020/21",
     (date_of_death >= "2021-04-01" & date_of_death < "2022-04-01") ~ "2021/22",
+    (date_of_death >= "2022-04-01" & date_of_death < "2023-04-01") ~ "2022/23",
     TRUE ~ "Unknown")
 )
       
@@ -392,7 +391,7 @@ hosp_los_wider <- smr_deaths %>%
   replace_na(list(large_hospital = 0, community_hospital = 0, hospice_palliative_care_unit = 0))
 
 # save temp file
-write_rds(hosp_los_wider, path(eol_folder, "Final Activity.rds"), compress="gz")
+arrow::write_parquet(hosp_los_wider, path(eol_folder, "Final Activity.parquet"))
 
 
 # Aggregate total los for each category
@@ -505,10 +504,10 @@ output_final <- output_all %>%
                  .default = lca)) %>%
   
   # set 2021/22 to provisional
-  mutate(finyear = recode(finyear, "2021/2022" = "2021/2022p", .default = finyear))
+  mutate(finyear = recode(finyear, "2022/2023" = "2022/2023p", .default = finyear))
 
 # save output for MSG
-write_rds(output_final, path(eol_folder, "Final figures.rds"))
+arrow::write_parquet(output_final, path(eol_folder, "Final figures.parquet"))
 write.xlsx(output_final, path(eol_folder, "Final figures.xlsx"), overwrite = TRUE)
 
 
