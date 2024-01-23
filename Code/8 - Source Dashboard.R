@@ -185,7 +185,7 @@ rm(ind_2a, ind_2b, ind_2c)
 # Read in data from A&E breakdowns file
 ind_3 <- arrow::read_parquet("Data/3-A&E-Breakdowns.parquet") %>% 
   # Drop unnecessary variables
-  select(-ref_source, -location, -location_name, -admissions, -number_meeting_target) %>% 
+  select(-ref_source, -location, -location_name) %>% 
   # Rename some variables to align with ind_1 and ind_2
   rename(age_groups = age_group) %>% 
   # Change age group formats to fit rest of script
@@ -200,7 +200,10 @@ ind_3 <- arrow::read_parquet("Data/3-A&E-Breakdowns.parquet") %>%
   lazy_dt() %>% 
   # Aggregate attendances by break variables
   group_by(council, locality, area_treated, age_groups, month) %>% 
-  summarise(three_attendances = sum(attendances), .groups = "keep") %>% 
+  summarise(three_attendances = sum(attendances),
+            one_b_ae_admissions = sum(admissions),
+            three_number_meeting_target = sum(number_meeting_target),
+            .groups = "keep") %>% 
   as_tibble() %>% 
   mutate(council = str_replace(council," and ", " & ")) %>% 
   filter(month >= dmy("01-04-2017"))
@@ -254,9 +257,11 @@ ind_4 <- ind_4 %>%
 ind_123 <- bind_rows(ind_1, ind_2, ind_3) %>% 
   # Use this opportunity to align Council names with those in ind_4
   standard_lca_names(council) %>% 
+  select("council", "locality", "area_treated", "age_groups", "month", "one_admissions",
+         "one_b_ae_admissions", "two_a", "two_b", "two_c", "three_attendances", "three_number_meeting_target") %>% 
   lazy_dt() %>% 
   group_by(council, locality, age_groups, area_treated, month) %>% 
-  summarise(across(one_admissions:three_attendances, sum, na.rm = T)) %>% 
+  summarise(across(one_admissions:three_number_meeting_target, ~ sum(.x, na.rm = T))) %>% 
   ungroup() %>% 
   as_tibble()
 
@@ -269,7 +274,8 @@ temp_18plus <- ind_123 %>%
   # Aggregate
   lazy_dt() %>% 
   group_by(council, locality, age_groups, area_treated, month) %>% 
-  summarise(across(one_admissions:three_attendances, sum, na.rm = TRUE), .groups = "keep") %>% 
+  summarise(across(one_admissions:three_number_meeting_target, 
+                   ~ sum(.x, na.rm = TRUE))) %>% 
   ungroup() %>% 
   as_tibble()
 
@@ -279,7 +285,8 @@ temp_allages <- ind_123 %>%
   # Aggregate
   lazy_dt() %>% 
   group_by(council, locality, age_groups, area_treated, month) %>% 
-  summarise(across(one_admissions:three_attendances, sum, na.rm = TRUE), .groups = "keep") %>% 
+  summarise(across(one_admissions:three_number_meeting_target, 
+                   ~ sum(.x, na.rm = TRUE))) %>% 
   ungroup() %>% 
   as_tibble()
 
@@ -324,10 +331,12 @@ while (end_date_rolling <= reporting_month_date) {
 
 rolling_output <- rolling_output %>% 
   rename(r12_one_admissions = one_admissions,
+         r12_one_b_ae_admissions = one_b_ae_admissions,
          r12_two_a = two_a,
          r12_two_b = two_b,
          r12_two_c = two_c,
          r12_three_attendances = three_attendances,
+         r12_three_number_meeting_target = three_number_meeting_target,
          r12_four_all_beddays = four_all_beddays,
          r12_four_pcf_beddays = four_pcf_beddays,
          r12_four_hsc_beddays = four_hsc_beddays,
@@ -343,9 +352,12 @@ ind_all_and_r12 <- full_join(ind_1234, rolling_output)
 scotland_totals <- ind_all_and_r12 %>% 
   filter(!is.na(locality)) %>% 
   mutate(council = "Scotland", locality = "All", la_code = "S99999999") %>%
+  relocate(la_code, .after = "month") %>% 
+  lazy_dt() %>% 
   group_by(council, locality, age_groups, area_treated, month, la_code) %>% 
-  summarise(across(where(is.numeric), sum, na.rm = TRUE), .groups = "keep") %>% 
-  ungroup()
+  summarise(across(one_admissions:r12_four_all_beddays, ~ sum(.x, na.rm = TRUE))) %>% 
+  ungroup() %>% 
+  as_tibble()
 ind_all_and_r12 <- bind_rows(ind_all_and_r12, scotland_totals) %>% 
   mutate(year = as.character(year(month)))
 rm(scotland_totals)
@@ -356,7 +368,7 @@ ind_final <- left_join(ind_all_and_r12, get_population(),
   relocate(la_code, .after = "month")
 
 # Tidy up 
-# rm(dz_lookup, ind_1, ind_2, ind_3, ind_4, ind_123, ind_1234, ind_all_and_r12)
+rm(dz_lookup, ind_1, ind_2, ind_3, ind_4, ind_123, ind_1234, ind_all_and_r12)
 
 # Add totals for Clackmannanshire & Stirling
 cs <- ind_final %>%
@@ -365,7 +377,7 @@ cs <- ind_final %>%
   relocate(la_code, .after = "month") %>% 
   lazy_dt() %>% 
   group_by(council, locality, age_groups, area_treated, month, la_code) %>% 
-  summarise(across(one_admissions:last_col(), sum, na.rm = TRUE)) %>% 
+  summarise(across(one_admissions:last_col(), ~ sum(.x, na.rm = TRUE))) %>% 
   ungroup() %>% 
   as_tibble()
   
@@ -377,19 +389,23 @@ ind_final <- bind_rows(ind_final, cs) %>%
          "month", 
          "la_code",
          "one_admissions", 
+         "one_b_ae_admissions",
          "two_a", 
          "two_b", 
          "two_c", 
          "three_attendances", 
+         "three_number_meeting_target",
          "four_hsc_beddays",
          "four_c9_beddays", 
          "four_pcf_beddays", 
          "four_all_beddays", 
          "r12_one_admissions", 
+         "r12_one_b_ae_admissions",
          "r12_two_a", 
          "r12_two_b", 
          "r12_two_c", 
          "r12_three_attendances", 
+         "r12_three_number_meeting_target",
          "r12_four_hsc_beddays", 
          "r12_four_c9_beddays", 
          "r12_four_pcf_beddays", 
@@ -406,7 +422,7 @@ temp_alllocalities <- ind_final %>%
   mutate(locality = "All") %>% 
   lazy_dt() %>% 
   group_by(across(council:la_code)) %>% 
-  summarise(across(one_admissions:population, sum, na.rm = TRUE), .groups = "keep") %>% 
+  summarise(across(one_admissions:population, ~ sum(.x, na.rm = TRUE))) %>% 
   as_tibble()
 ind_final <- bind_rows(ind_final, temp_alllocalities) %>% 
   rename(partnership = council)
@@ -415,6 +431,7 @@ rm(temp_alllocalities)
 # Create rate variables
 ind_final <- ind_final %>% mutate(
   one_rate = (one_admissions/population)*1000,
+  one_b_rate = (one_b_ae_admissions/population)*1000,
   two_a_rate = (two_a/population)*1000,
   two_b_rate = (two_b/population)*1000,
   two_c_rate = (two_c/population)*1000,
@@ -458,7 +475,7 @@ ind_final <- ind_final %>% mutate(
          Four_HSC_rate = four_hsc_rate,
          Four_PCF_rate = four_pcf_rate)
 
-haven::write_sav(ind_final, "Data/MSG Tableau 1 to 4.sav")
+haven::write_sav(ind_final, "Data/MSG Tableau 1 to 4 test.sav")
 write_csv(ind_final, "Data/MSG Tableau 1 to 4.csv", na="")
 
 # SECTION 10: Indicators 5 and 6 ----
