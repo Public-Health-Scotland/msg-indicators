@@ -475,7 +475,7 @@ ind_final <- ind_final %>% mutate(
          Four_HSC_rate = four_hsc_rate,
          Four_PCF_rate = four_pcf_rate)
 
-haven::write_sav(ind_final, "Data/MSG Tableau 1 to 4 test.sav")
+haven::write_sav(ind_final, "Data/MSG Tableau 1 to 4.sav")
 write_csv(ind_final, "Data/MSG Tableau 1 to 4.csv", na="")
 
 # SECTION 10: Indicators 5 and 6 ----
