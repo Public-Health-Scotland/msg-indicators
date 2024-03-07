@@ -2,7 +2,7 @@
 files_to_zip <- dir("Data", full.names = TRUE)
 
 # Get the reporting month as a string
-file_prefix <- "Sep-2023"
+file_prefix <- "Dec-2023"
 
 # Keep the older A&E data
 files_to_zip <- files_to_zip[! files_to_zip %in% c("Data/3-A&E-1415.parquet",

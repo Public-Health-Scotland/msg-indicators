@@ -23,7 +23,7 @@ library(slfhelper)
 # filepaths
 
 #create output file_path
-output_folder <- "/conf/irf/03-Integration-Indicators/02-MSG/06-R-Project/Annual Data/"
+output_folder <- "Annual Data/"
 
 # create list of carehome codes 
 ch_list <- c("A240V", "F821V", "G105V", "G518V", "G203V", "G315V", "G424V", "G541V", "G557V",
@@ -36,6 +36,9 @@ hospice_list <- c("C413V", "C306V", "A227V", "G414V", "G604V", "L102K", "S121K",
 # read in community hospital lookup
 comm_hosp_lookup <- read_rds("Annual Data/community_hospital_lookup.rds")
 
+# Read in Care Home data from Care Home Census
+care_home_data_path <- path(output_folder, "final_nos_18_65_75_LA_AllAdultCareHomes_31mar2023 (formatted).xlsx")
+
 # population lookup
 pop_lookup <- read_rds("/conf/linkage/output/lookups/Unicode/Populations/Estimates/CA2019_pop_est_1981_2021.rds")  %>%
   clean_names() %>%
@@ -45,9 +48,10 @@ pop_lookup <- read_rds("/conf/linkage/output/lookups/Unicode/Populations/Estimat
 #### 2. Extract Data ----
 
 # extract episode level data from SLFs
-slf_extract <- read_slf_episode(c("1314", "1415", "1516", "1617", "1718", "1819", "1920", "2021", "2122"),
+slf_extract <- read_slf_episode(c("1314", "1415", "1516", "1617", "1718", 
+                                  "1819", "1920", "2021", "2122", "2223"),
                                 recids = c("01B", "02B", "GLS", "50B", "04B"),
-                                columns = c("anon_chi", "recid",  "ipdc", "location", 
+                                col_select = c("anon_chi", "recid",  "ipdc", "location", 
                                             "year", "lca", "yearstay", "sigfac", "age")) %>%
   filter(ipdc == "I" & (anon_chi != "" | !is.na(anon_chi)) & (lca != "" | !is.na(lca)))
 
@@ -176,6 +180,11 @@ pop_join <-
                           year == 2020 ~ "2021",
                           year == 2021 ~ "2122"))
 
+pop_2223 <- pop_join %>% 
+  filter(year == "2122") %>% 
+  mutate(year = "2223")
+
+pop_join <- bind_rows(pop_join, pop_2223)
 
 
 #### 4. Format output ----
@@ -230,10 +239,80 @@ final_output <- bind_rows(output_ca, output_sc, output_scot) %>%
                        "1819" = "2018/19",
                        "1920" = "2019/20",
                        "2021" = "2020/21",
-                       "2122" = "2021/22"))
+                       "2122" = "2021/22",
+                       "2223" = "2022/23"),
+         ca2019name = stringr::str_replace(ca2019name, " and ", " & "),
+         ca2019name = if_else(ca2019name == "Stirling & Clackmannanshire", "Stirling and Clackmannanshire", ca2019name)) %>% 
+  filter(!is.na(ca2019name))
   
 # save output
 write_rds(final_output, path(output_folder, "Final_Beddays.rds"), compress = "gz")
 write.xlsx(final_output, path(output_folder, "Final_Beddays.xlsx"), overwrite = TRUE)
 
+# Add Care Home data onto final output
+
+care_home_data_new <- read_excel(path = care_home_data_path,
+                             col_names = c("ca2019name", "eighteenplus", "sixtyfiveplus", "seventyfiveplus"),
+                             range = "A5:D37") %>% 
+  pivot_longer(cols = c("eighteenplus", "sixtyfiveplus", "seventyfiveplus"),
+               names_to = "age_group",
+               values_to = "care_home") %>% 
+  mutate(age_group = case_when(age_group == "eighteenplus" ~ "All Ages",
+                               age_group == "sixtyfiveplus" ~ "65+",
+                               age_group == "seventyfiveplus" ~ "75+"),
+         year = "2022/23")
+
+cands <- care_home_data_new %>% 
+  filter(ca2019name %in% c("Stirling", "Clackmannanshire")) %>% 
+  mutate(ca2019name = "Stirling and Clackmannanshire") %>% 
+  group_by(year, ca2019name, age_group) %>% 
+  summarise(care_home = sum(care_home)) %>% 
+  ungroup()
+
+care_home_data_old <- read_excel(path(output_folder, "care_home_figures.xlsx"),
+                                 col_names = c("year", "age_group", "ca2019name", "care_home"),
+                                 skip = 1) %>% 
+  mutate(age_group = if_else(age_group == "All", "All Ages", age_group))
+
+care_home_final <- bind_rows(care_home_data_old, care_home_data_new, cands)
+
+final_with_ch <- left_join(final_output, care_home_final, by = c("year", "age_group", "ca2019name"))
+
+# Add Home care data to output
+
+home_care_raw <- read_excel(path = "Annual Data/IR2024-00079 CAH Census week client count 2022.xlsx",
+                            sheet = "Source Data",
+                            col_names = c("age_group", "year", "ca2019name", "home_supported"),
+                            range = "B5:E103")
+
+hc_cands <- home_care_raw %>% 
+  filter(ca2019name %in% c("Stirling", "Clackmannanshire")) %>% 
+  mutate(ca2019name = "Stirling and Clackmannanshire") %>% 
+  group_by(year, ca2019name, age_group) %>% 
+  summarise(home_supported = sum(home_supported)) %>% 
+  ungroup()
+
+home_care_old <- read_excel("Annual Data/home_care_figures.xlsx",
+                            col_names = c("year", "age_group", "ca2019name", "home_supported"),
+                            skip = 1) %>% 
+  mutate(age_group = if_else(age_group == "All", "All Ages", age_group))
+
+home_care_final <- bind_rows(home_care_raw, hc_cands, home_care_old)
+
+final_with_everything <- left_join(final_with_ch, home_care_final, by = c("year", "age_group", "ca2019name")) %>% 
+  replace(is.na(.), 0) %>% 
+  mutate(home_unsupported = population - acute - community_hospital - hospice - care_home - home_supported,
+         temp_year = str_c(str_sub(year, 3, 4), str_sub(year, 6, 7)),
+         age_group = if_else(age_group == "All Ages", "All", age_group),
+         lookup = str_c(age_group, temp_year)) %>% 
+  select(-temp_year) %>% 
+  rename(partnership = ca2019name,
+         age_grp = age_group) %>% 
+  relocate(lookup, .before = year)
+  
+
+# Save out
+write_xlsx(final_with_everything, "Annual Data/indicator_6_final_jan_2024.xlsx")
+write_xlsx(care_home_final, "Annual Data/care_home_figures.xlsx")
+write_xlsx(home_care_final, "Annual Data/home_care_figures.xlsx")
 

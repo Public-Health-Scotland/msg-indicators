@@ -63,7 +63,7 @@ ind_5_path <-
 
 # Constants ----
 
-reporting_month_string <- "sep23"
+reporting_month_string <- "dec23"
 
 lookup_date <- "20220630"
 

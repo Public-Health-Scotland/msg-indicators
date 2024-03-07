@@ -16,13 +16,13 @@
 # source(path(code_folder, "0 - Packages & functions.R"))
 
 # pick up file from DD team - date needs changed monthly
-dd_list <- read_rds("Data/2023-10_dd-msg.rds")
+dd_list <- read_rds("Data/2024-01_dd-msg.rds")
 
 #### 2. Excel output ----
 
 # Create reporting month in a format that the open data expects
 # last_date <- str_sub(as.character(as.Date(format(Sys.Date() - months(1), '%Y-%m-01')) - 1), 1, 7)
-last_date <- "2023-09"
+last_date <- "2023-12"
 # Create reporting month in a format that our template expects
 extra_column <- str_to_lower(str_c(month.abb[as.integer(str_sub(last_date, 6))], "_", str_sub(last_date, 3, 4)))
 
@@ -80,7 +80,7 @@ write_xlsx(output, "Data/4-Delayed-Discharges.xlsx")
 
 dd_list %<>% 
   mutate(month = dmy(month)) %>% 
-  filter(month <= dmy("01-09-2023"))
+  filter(month <= dmy("01-12-2023"))
 
 # save R & SPSS files
 arrow::write_parquet(dd_list, "Data/4-Delayed-Discharge-Breakdowns.parquet")

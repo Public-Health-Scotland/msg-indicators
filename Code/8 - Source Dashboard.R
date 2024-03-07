@@ -481,16 +481,16 @@ write_csv(ind_final, "Data/MSG Tableau 1 to 4.csv", na="")
 # SECTION 10: Indicators 5 and 6 ----
 
 if (str_detect(question56, "[Yy]")){
-  ind_5 <- read_rds("Annual Data/Final figures.rds") %>% 
+  ind_5 <- arrow::read_parquet("Annual Data/Final figures.parquet") %>% 
     clean_names() %>% 
     filter(!(finyear %in% c("2013/2014", "2014/2015"))) %>% 
     mutate(year = str_c(str_sub(finyear, 1, 5), str_sub(finyear, 8, 9)),
            indicator = "5") %>% 
-    mutate(year = if_else(year == "2021/22", "2021/22p", year)) %>% 
+    mutate(year = if_else(year == "2022/23", "2022/23p", year)) %>% 
     rename(council = lca) %>% 
     rename_with(~ stringr::str_sub(.x, 6, -1), .cols = perc_community:perc_large) %>% 
     select(-finyear)
-  ind_6 <- read_excel(path(latest_template), sheet = "Data6", range = "B3:S1000",
+  ind_6 <- read_excel(path(latest_template), sheet = "Data6", range = "B3:S1200",
                       col_names = TRUE) %>% 
     clean_names() %>% 
     select(year, age_grp, partnership, acute:home_unsupported_18) %>% 
