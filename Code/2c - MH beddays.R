@@ -39,42 +39,33 @@ channel <- suppressWarnings(
             pwd = .rs.askForPassword("What is your LDAP password?")))
 
 # Extract SMR04 data
-smr04_extract <- as_tibble(dbGetQuery(channel, statement = "SELECT LINK_NO, ADMISSION_DATE,
+smr04_data <- as_tibble(dbGetQuery(channel, statement = "SELECT LINK_NO, ADMISSION_DATE,
                                       DISCHARGE_DATE, SPECIALTY, LOCATION,
                                       SIGNIFICANT_FACILITY, ADMISSION_TYPE, DR_POSTCODE,
                                       AGE_IN_YEARS, HBTREAT_CURRENTDATE, ADMISSION,
                                       DISCHARGE, URI FROM ANALYSIS.SMR04_PI
-                                      WHERE ADMISSION_DATE >= TO_DATE('1997-01-01','YYYY-MM-DD')")) %>%
+                                      WHERE ADMISSION_DATE >= TO_DATE('1997-01-01','YYYY-MM-DD')
+                                      AND (ADMISSION_TYPE IN (20, 21, 22) OR 
+                                      ADMISSION_TYPE BETWEEN 30 AND 39 OR
+                                      ADMISSION_TYPE = 18)")) %>%
   
   # 'Clean' variable names
   clean_names() %>%
-  # set admission & discharge as dates
+  # Set admission & discharge as dates
   mutate(admission_date=as_date(admission_date),
-         discharge_date=as_date(discharge_date))
+         discharge_date=as_date(discharge_date)) %>% 
+  # Add geographies
+  left_join(postcode_lookup, by = "dr_postcode") %>%
+  left_join(locality_lookup, by = "datazone2011")  %>%
+  left_join(council_lookup, by = "ca2019") %>% 
+  # Drop any missing LCAs
+  drop_na(ca2019)
+  
 
 # Close odbc connection
 dbDisconnect(channel)
 
-
-#### 3. Match geographies & select episodes ----
-
-# Match on geographies
-smr04_extract %<>%
-  left_join(postcode_lookup, by = "dr_postcode") %>%
-  left_join(locality_lookup, by = "datazone2011")  %>%
-  left_join(council_lookup, by = "ca2019")
-
-# Select required episodes
-smr04_data <- smr04_extract %>%
-  # select emergency stays (include transfers as many will have started as emergency in SMR01)
-  filter(admission_type >= 20 & admission_type <= 22 | 
-           admission_type >= 30 & admission_type <= 39 |
-           admission_type == 18) %>%
-  # select those resident in a CA
-  drop_na(ca2019)
-
-
-#### 4. Remove duplicates ----
+#### 3. Remove duplicates ----
 
 # 4.1 Same link no, admission and discharge
 dups_1 <- smr04_data %>%
@@ -83,11 +74,11 @@ dups_1 <- smr04_data %>%
 
 # 4.2 Same link no, admission & discharge NA
 dups_2 <- dups_1 %>%
-  mutate(ad_flag = if_else(admission_date == lag(admission_date),1,0),
-         dis_flag = if_else(is.na(discharge_date),1,0),
-         link_flag = if_else(link_no == lag(link_no),1,0),
-         duplicates = if_else(ad_flag == 1 & dis_flag == 1 & link_flag == 1,1,0)) %>%
-  filter(duplicates == 0)
+  mutate(ad_flag = admission_date == lag(admission_date),
+         dis_flag = is.na(discharge_date),
+         link_flag = link_no == lag(link_no),
+         duplicates = ad_flag & dis_flag & link_flag) %>%
+  filter(!duplicates)
 
 # 4.3 create flags for missing discharge & min / max
 dups_2_flags <- dups_2 %>%
